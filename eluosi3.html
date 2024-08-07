@@ -1,0 +1,294 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no"> <!-- 禁用缩放 -->
+    <title>俄罗斯方块</title>
+    <style>
+        body {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            height: 100vh;
+            margin: 0;
+            background-color: #f0f0f0;
+        }
+        canvas {
+            border: 1px solid black;
+            background-color: #fff;
+        }
+        #score {
+            font-size: 20px;
+            margin-bottom: 10px;
+        }
+        #controls {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-bottom: 10px;
+        }
+        .controlRow {
+            display: flex;
+        }
+        button {
+            margin: 5px;
+            padding: 10px;
+            font-size: 16px;
+            touch-action: none; /* Prevent default touch actions */
+        }
+    </style>
+</head>
+<body>
+    <div id="score">剑魔的分数: 0</div>
+    <div id="controls">
+        <div class="controlRow">
+            <button id="rotateButton">↑</button>
+        </div>
+        <div class="controlRow">
+            <button id="leftButton">←</button>
+            <button id="downButton">↓</button>
+            <button id="rightButton">→</button>
+        </div>
+    </div>
+    <canvas id="gameCanvas" width="300" height="600"></canvas>
+    <button id="restartButton" style="display: none;">重新开始</button>
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const context = canvas.getContext('2d');
+        const scoreElement = document.getElementById('score');
+        const restartButton = document.getElementById('restartButton');
+        const leftButton = document.getElementById('leftButton');
+        const rotateButton = document.getElementById('rotateButton');
+        const downButton = document.getElementById('downButton');
+        const rightButton = document.getElementById('rightButton');
+        const ROWS = 20;
+        const COLS = 10;
+        const BLOCK_SIZE = 30;
+
+        const COLORS = [
+            'cyan', 'blue', 'orange', 'yellow', 'green', 'purple', 'red'
+        ];
+
+        const SHAPES = [
+            [[1, 1, 1], [0, 1, 0]],  // T形
+            [[0, 2, 2], [2, 2, 0]],  // Z形
+            [[3, 3, 0], [0, 3, 3]],  // S形
+            [[4, 4], [4, 4]],        // O形
+            [[5, 5, 5, 5]],          // I形
+            [[6, 6, 6], [6, 0, 0]],  // J形
+            [[7, 7, 7], [0, 0, 7]]   // L形
+        ];
+
+        let board, currentShape, currentX, currentY, score, gameOver;
+        let moveInterval;
+
+        function init() {
+            board = Array.from({ length: ROWS }, () => Array(COLS).fill(0));
+            currentShape = getRandomShape();
+            currentX = COLS / 2 - Math.floor(currentShape[0].length / 2);
+            currentY = 0;
+            score = 0;
+            gameOver = false;
+            updateScore();
+            draw();
+            if (restartButton.style.display !== 'none') {
+                restartButton.style.display = 'none';
+            }
+        }
+
+        function getRandomShape() {
+            const shape = SHAPES[Math.floor(Math.random() * SHAPES.length)];
+            return shape.map(row => row.slice());
+        }
+
+        function handleKeyPress(event) {
+            if (gameOver) return;
+
+            switch (event.key) {
+                case 'ArrowLeft':
+                    if (!collision(currentX - 1, currentY)) currentX--;
+                    break;
+                case 'ArrowRight':
+                    if (!collision(currentX + 1, currentY)) currentX++;
+                    break;
+                case 'ArrowDown':
+                    if (!collision(currentX, currentY + 1)) currentY++;
+                    else placeShape();
+                    break;
+                case 'ArrowUp':
+                    rotateShape();
+                    break;
+            }
+
+            draw();
+        }
+
+        function collision(x, y) {
+            for (let row = 0; row < currentShape.length; row++) {
+                for (let col = 0; col < currentShape[row].length; col++) {
+                    if (currentShape[row][col] &&
+                        (board[y + row] && board[y + row][x + col]) !== 0) {
+                        return true;
+                    }
+                }
+            }
+            return false;
+        }
+
+        function rotateShape() {
+            const newShape = currentShape[0].map((_, colIndex) =>
+                currentShape.map(row => row[colIndex]).reverse()
+            );
+            if (!collision(currentX, currentY)) {
+                currentShape = newShape;
+            }
+        }
+
+        function placeShape() {
+            currentShape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value) {
+                        board[currentY + y][currentX + x] = value;
+                    }
+                });
+            });
+            clearLines();
+            currentShape = getRandomShape();
+            currentX = COLS / 2 - Math.floor(currentShape[0].length / 2);
+            currentY = 0;
+            if (collision(currentX, currentY)) {
+                gameOver = true;
+                restartButton.style.display = 'block';
+                alert('Game Over');
+            }
+        }
+
+        function clearLines() {
+            board = board.filter(row => row.some(value => value === 0));
+            const clearedLines = ROWS - board.length;
+            while (board.length < ROWS) {
+                board.unshift(Array(COLS).fill(0));
+            }
+            score += clearedLines * 10;
+            updateScore();
+        }
+
+        function updateScore() {
+            scoreElement.textContent = `剑魔的分数: ${score}`;
+        }
+
+        function draw() {
+            context.clearRect(0, 0, canvas.width, canvas.height);
+
+            board.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value) {
+                        context.fillStyle = COLORS[value - 1];
+                        context.fillRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                        context.strokeRect(x * BLOCK_SIZE, y * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    }
+                });
+            });
+
+            currentShape.forEach((row, y) => {
+                row.forEach((value, x) => {
+                    if (value) {
+                        context.fillStyle = COLORS[value - 1];
+                        context.fillRect((currentX + x) * BLOCK_SIZE, (currentY + y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                        context.strokeRect((currentX + x) * BLOCK_SIZE, (currentY + y) * BLOCK_SIZE, BLOCK_SIZE, BLOCK_SIZE);
+                    }
+                });
+            });
+        }
+
+        function update() {
+            if (!gameOver) {
+                if (!collision(currentX, currentY + 1)) {
+                    currentY++;
+                } else {
+                    placeShape();
+                }
+                draw();
+                setTimeout(update, 500);
+            }
+        }
+
+        function startMoving(direction) {
+            moveInterval = setInterval(() => {
+                switch (direction) {
+                    case 'left':
+                        if (!collision(currentX - 1, currentY)) currentX--;
+                        break;
+                    case 'right':
+                        if (!collision(currentX + 1, currentY)) currentX++;
+                        break;
+                    case 'down':
+                        if (!collision(currentX, currentY + 1)) currentY++;
+                        break;
+                }
+                draw();
+            }, 100); // Adjust speed here
+        }
+
+        function stopMoving() {
+            clearInterval(moveInterval);
+        }
+
+        // Control button functionality
+        leftButton.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent default touch behavior
+            startMoving('left');
+        });
+        leftButton.addEventListener('touchend', stopMoving);
+        leftButton.addEventListener('touchcancel', stopMoving);
+        leftButton.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            startMoving('left');
+        });
+        leftButton.addEventListener('mouseup', stopMoving);
+        leftButton.addEventListener('mouseleave', stopMoving);
+
+        rightButton.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent default touch behavior
+            startMoving('right');
+        });
+        rightButton.addEventListener('touchend', stopMoving);
+        rightButton.addEventListener('touchcancel', stopMoving);
+        rightButton.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            startMoving('right');
+        });
+        rightButton.addEventListener('mouseup', stopMoving);
+        rightButton.addEventListener('mouseleave', stopMoving);
+
+        downButton.addEventListener('touchstart', (e) => {
+            e.preventDefault(); // Prevent default touch behavior
+            startMoving('down');
+        });
+        downButton.addEventListener('touchend', stopMoving);
+        downButton.addEventListener('touchcancel', stopMoving);
+        downButton.addEventListener('mousedown', (e) => {
+            e.preventDefault();
+            startMoving('down');
+        });
+        downButton.addEventListener('mouseup', stopMoving);
+        downButton.addEventListener('mouseleave', stopMoving);
+
+        rotateButton.addEventListener('click', () => {
+            rotateShape();
+            draw();
+        });
+
+        restartButton.addEventListener('click', () => {
+            init();
+            update();
+        });
+
+        document.addEventListener('keydown', handleKeyPress);
+
+        init();
+        update();
+    </script>
+</body>
+</html>
